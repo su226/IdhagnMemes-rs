@@ -28,6 +28,6 @@ register_meme!(
     min_images = 1,
     max_images = 1,
     keywords = &["ori", "拥抱光明"],
-    date_created = local_date(2022, 11, 11),
+    date_created = local_date(2022, 2, 14),
     date_modified = local_date(2025, 12, 5),
 );

@@ -35,6 +35,6 @@ register_meme!(
     min_images = 2,
     max_images = 2,
     keywords = &["蔡徐坤", "cxk", "打篮球", "鸡你太美"],
-    date_created = local_date(2022, 11, 11),
+    date_created = local_date(2022, 2, 14),
     date_modified = local_date(2026, 5, 22),
 );
