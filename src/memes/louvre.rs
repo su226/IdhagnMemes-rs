@@ -9,27 +9,59 @@ use skia_safe::gradient::{Colors, Gradient, Interpolation};
 use skia_safe::runtime_effect::{ChildPtr, Uniform};
 use skia_safe::shaders::linear_gradient;
 use skia_safe::{
-    BlendMode,
+    AlphaType,
     Color,
     Color4f,
-    ColorFilter,
-    ColorMatrix,
+    ColorType,
     Data,
     IPoint,
     ISize,
     Image,
     ImageFilter,
+    ImageInfo,
     Paint,
     Rect,
     RuntimeEffect,
     SamplingOptions,
     Shader,
+    Surface,
     TileMode,
     color_filters,
     image_filters,
+    surfaces,
 };
 
 use crate::register_meme;
+
+fn make_gray_surface(width: i32, height: i32) -> Option<Surface> {
+    surfaces::raster(
+        &ImageInfo::new(
+            ISize::new(width, height),
+            ColorType::Gray8,
+            AlphaType::Opaque,
+            None,
+        ),
+        None,
+        None,
+    )
+}
+
+fn grayscale(image: &Image) -> Option<Image> {
+    let mut surface = make_gray_surface(image.width(), image.height())?;
+    let canvas = surface.canvas();
+    canvas.clear(Color::WHITE);
+    canvas.draw_image(image, (0, 0), None);
+    Some(surface.image_snapshot())
+}
+
+fn filter_gray(image: &Image, filter: ImageFilter) -> Option<Image> {
+    let mut surface = make_gray_surface(image.width(), image.height())?;
+    let canvas = surface.canvas();
+    let mut paint = Paint::default();
+    paint.set_image_filter(Some(filter));
+    canvas.draw_image(image, (0, 0), Some(&paint));
+    Some(surface.image_snapshot())
+}
 
 fn make_gradient(dimensions: ISize) -> Option<Shader> {
     linear_gradient(
@@ -49,18 +81,6 @@ fn make_gradient(dimensions: ISize) -> Option<Shader> {
                 None,
             ),
             Interpolation::default(),
-        ),
-        None,
-    )
-}
-
-fn invert() -> ColorFilter {
-    color_filters::matrix(
-        &ColorMatrix::new(
-            -1.0, 0.0, 0.0, 0.0, 1.0, //
-            0.0, -1.0, 0.0, 0.0, 1.0, //
-            0.0, 0.0, -1.0, 0.0, 1.0, //
-            0.0, 0.0, 0.0, 1.0, 0.0,
         ),
         None,
     )
@@ -136,9 +156,11 @@ fn make_louvre(
     let lut = array::from_fn(|i| if i > shade_limit as usize { 0 } else { 255 });
     let identity = array::from_fn(|i| i as u8);
     let shade_light = (SHADE_LIGHT as f32) / 255.0;
-    let shade = image.image_filter(
+    let shade = filter_gray(
+        image,
         compose_multi(vec![
             image_filters::color_filter(
+                // 这里用 table 不行，就算是灰度图片
                 color_filters::table_argb(&identity, &lut, &lut, &lut)
                     .ok_or_else(|| error("初始化滤镜失败"))?,
                 None,
@@ -146,57 +168,25 @@ fn make_louvre(
             )
             .ok_or_else(|| error("初始化滤镜失败"))?,
             image_filters::blur((1.0, 1.0), None, None, None).unwrap(),
-            image_filters::blend(
-                BlendMode::Multiply,
-                image_filters::color_filter(
-                    invert(),
-                    image_filters::image(pencil, None, None, None)
-                        .ok_or_else(|| error("初始化滤镜失败"))?,
-                    None,
-                )
-                .ok_or_else(|| error("初始化滤镜失败"))?,
-                None,
-                None,
-            )
-            .ok_or_else(|| error("初始化滤镜失败"))?,
-            image_filters::color_filter(
-                color_filters::matrix(
-                    &ColorMatrix::new(
-                        shade_light,
-                        0.0,
-                        0.0,
-                        0.0,
-                        0.0,
-                        //
-                        0.0,
-                        shade_light,
-                        0.0,
-                        0.0,
-                        0.0,
-                        //
-                        0.0,
-                        0.0,
-                        shade_light,
-                        0.0,
-                        0.0,
-                        //
-                        0.0,
-                        0.0,
-                        0.0,
-                        1.0,
-                        0.0,
-                    ),
-                    None,
-                ),
+            image_filters::arithmetic(
+                -shade_light,
+                shade_light,
+                0.0,
+                0.0,
+                false,
+                image_filters::image(pencil, None, None, None)
+                    .ok_or_else(|| error("初始化滤镜失败"))?,
                 None,
                 None,
             )
             .ok_or_else(|| error("初始化滤镜失败"))?,
         ])
         .ok_or_else(|| error("初始化滤镜失败"))?,
-    );
+    )
+    .ok_or_else(|| error("应用滤镜失败"))?;
     let image = if denoise {
-        &image.image_filter(
+        &filter_gray(
+            image,
             image_filters::matrix_convolution(
                 ISize::new(3, 3),
                 &[1.0 / 9.0; 9],
@@ -210,12 +200,14 @@ fn make_louvre(
             )
             .ok_or_else(|| error("初始化卷积失败"))?,
         )
+        .ok_or_else(|| error("应用滤镜失败"))?
     } else {
         image
     };
     let (kernel, kernel_size, kernel_offset) =
         get_kernel(style).ok_or_else(|| error("风格无效"))?;
-    let convolved = image.image_filter(
+    let convolved = filter_gray(
+        image,
         image_filters::matrix_convolution(
             kernel_size,
             &kernel,
@@ -228,7 +220,8 @@ fn make_louvre(
             None,
         )
         .ok_or_else(|| error("初始化卷积失败"))?,
-    );
+    )
+    .ok_or_else(|| error("应用滤镜失败"))?;
     let sksl = r#"
         uniform shader image;
         uniform shader convolved;
@@ -322,12 +315,14 @@ fn louvre(
     options: LouvreOptions,
 ) -> Result<Vec<u8>, Error> {
     let dimensions = images[0].image.dimensions();
-    let pencil = load_image("idhagnmemes/louvre/0.jpg")?.resize_fit(dimensions, Fit::Cover);
+    let pencil =
+        grayscale(&load_image("idhagnmemes/louvre/0.jpg")?.resize_fit(dimensions, Fit::Cover))
+            .ok_or_else(|| error("无法去色素材"))?;
     let gradient = make_gradient(dimensions).ok_or_else(|| error("创建渐变着色器失败"))?;
 
     make_png_or_gif(images, |images| {
         make_louvre(
-            &images[0].with_background(Color::WHITE).grayscale(),
+            &grayscale(&images[0]).ok_or_else(|| error("无法去色图片"))?,
             &pencil,
             gradient.clone(),
             options.style.as_ref().ok_or_else(|| error("参数不存在"))?,
