@@ -154,14 +154,13 @@ fn make_louvre(
     denoise: bool,
 ) -> Result<Image, Error> {
     let lut = array::from_fn(|i| if i > shade_limit as usize { 0 } else { 255 });
-    let identity = array::from_fn(|i| i as u8);
     let shade_light = (SHADE_LIGHT as f32) / 255.0;
     let shade = filter_gray(
         image,
         compose_multi(vec![
             image_filters::color_filter(
                 // 这里用 table 不行，就算是灰度图片
-                color_filters::table_argb(&identity, &lut, &lut, &lut)
+                color_filters::table_argb(None, &lut, &lut, &lut)
                     .ok_or_else(|| error("初始化滤镜失败"))?,
                 None,
                 None,
