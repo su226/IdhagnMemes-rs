@@ -1,3 +1,6 @@
+//! 特别感谢：One Last Image 的原作者 itorr
+//! https://lab.magiconch.com/one-last-image/
+
 use std::array;
 
 use meme_generator_core::error::Error;
