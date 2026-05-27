@@ -4,4 +4,5 @@ mod flash;
 mod indihome;
 mod louvre;
 mod netease_mc;
+mod nokia;
 mod ori;
