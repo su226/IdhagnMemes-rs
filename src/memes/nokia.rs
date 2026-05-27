@@ -6,7 +6,7 @@ use meme_generator_utils::text::Text2Image;
 use meme_generator_utils::text_params;
 use meme_generator_utils::tools::{load_image, local_date};
 use skia_safe::textlayout::TextAlign;
-use skia_safe::{Paint, Point, TileMode, image_filters};
+use skia_safe::{Color, Paint, Point, TileMode, image_filters};
 
 use crate::options::NoOptions;
 use crate::register_meme;
@@ -18,6 +18,7 @@ fn nokia(_: Vec<InputImage>, texts: Vec<String>, _: NoOptions) -> Result<Vec<u8>
     let canvas = surface.canvas();
     canvas.rotate(15.0, Some(Point::new(272.0, 275.0)));
     let mut paint = Paint::default();
+    paint.set_color(Color::from_rgb(24, 53, 4));
     // 此处 TileMode 必须是 Decal，否则边缘会出现奇怪的粘连
     paint.set_image_filter(
         image_filters::blur((1.0, 1.0), TileMode::Decal, None, None)
