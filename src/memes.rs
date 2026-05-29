@@ -1,6 +1,7 @@
 mod addict;
 mod cxk;
 mod flash;
+mod good_answer;
 mod indihome;
 mod louvre;
 mod make_sound;
