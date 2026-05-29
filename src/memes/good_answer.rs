@@ -31,24 +31,29 @@ fn good_answer(_: Vec<InputImage>, texts: Vec<String>, _: NoOptions) -> Result<V
     let width = PADDING_X * 2
         + (image.width() + MEDAL_MARGIN_RIGHT + (title_layout.longest_line().ceil() as i32))
             .max(content_layout.longest_line().ceil() as i32);
+    let header_height = image.height().max(title_layout.height().ceil() as i32);
     let height = PADDING_Y * 2
-        + image.height().max(title_layout.height().ceil() as i32)
+        + header_height
         + MEDAL_MARGIN_BOTTOM
         + (content_layout.height().ceil() as i32);
     let mut surface = new_surface((width, height));
     let canvas = surface.canvas();
     canvas.clear(Color::WHITE);
-    canvas.draw_image(&image, (PADDING_X, PADDING_Y), None);
+    canvas.draw_image(
+        &image,
+        (PADDING_X, PADDING_Y + (header_height - image.height()) / 2),
+        None,
+    );
     title_layout.draw_on_canvas(
         canvas,
         (
             PADDING_X + image.width() + MEDAL_MARGIN_RIGHT,
-            PADDING_Y + ((image.height() as f32 - title_layout.height()) / 2.0) as i32,
+            PADDING_Y + ((header_height as f32 - title_layout.height()) / 2.0) as i32,
         ),
     );
     content_layout.draw_on_canvas(
         canvas,
-        (PADDING_X, PADDING_Y + image.height() + MEDAL_MARGIN_BOTTOM),
+        (PADDING_X, PADDING_Y + header_height + MEDAL_MARGIN_BOTTOM),
     );
     encode_png(surface.image_snapshot())
 }
