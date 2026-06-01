@@ -6,6 +6,7 @@ use meme_generator_utils::tools::{load_image, local_date, new_surface};
 use rand::RngExt;
 use skia_safe::{Color, ISize, Image, Paint, Rect, Surface, color_filters};
 
+use crate::image::flatten;
 use crate::options::NoOptions;
 use crate::register_meme;
 
@@ -84,6 +85,7 @@ fn indihome(images: Vec<InputImage>, _: Vec<String>, _: NoOptions) -> Result<Vec
         .image
         .resize_fit((width, height), Fit::Cover)
         .circle();
+    let image = flatten(&image);
     let mut encoder = GifEncoder::new();
     for i in 0..SLIDE_FRAMES {
         let x = lerp(width as f32, 0.0, (i as f32) / (SLIDE_FRAMES as f32)) as i32;

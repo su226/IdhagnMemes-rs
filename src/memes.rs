@@ -8,3 +8,4 @@ mod make_sound;
 mod netease_mc;
 mod nokia;
 mod ori;
+mod orly;

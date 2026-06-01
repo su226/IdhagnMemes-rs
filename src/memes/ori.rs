@@ -5,6 +5,7 @@ use meme_generator_utils::image::ImageExt;
 use meme_generator_utils::tools::{load_image, local_date};
 use skia_safe::Image;
 
+use crate::image::flatten;
 use crate::options::NoOptions;
 use crate::register_meme;
 
@@ -14,7 +15,7 @@ fn ori(images: Vec<InputImage>, _: Vec<String>, _: NoOptions) -> Result<Vec<u8>,
     let func = |images: Vec<Image>| {
         let mut surface = frame.to_surface();
         let canvas = surface.canvas();
-        let img = images[0].resize_exact((100, 100)).circle();
+        let img = flatten(&images[0].resize_exact((100, 100))).circle();
         canvas.draw_image(&img, (305, 222), None);
         Ok(surface.image_snapshot())
     };

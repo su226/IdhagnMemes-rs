@@ -9,62 +9,26 @@ use meme_generator_utils::encoder::make_png_or_gif;
 use meme_generator_utils::image::{Fit, ImageExt};
 use meme_generator_utils::tools::{load_image, local_date, new_surface};
 use skia_safe::gradient::{Colors, Gradient, Interpolation};
-use skia_safe::runtime_effect::{ChildPtr, Uniform};
+use skia_safe::runtime_effect::ChildPtr;
 use skia_safe::shaders::linear_gradient;
 use skia_safe::{
-    AlphaType,
-    Color,
     Color4f,
-    ColorType,
     Data,
     IPoint,
     ISize,
     Image,
-    ImageFilter,
-    ImageInfo,
     Paint,
     Rect,
     RuntimeEffect,
     SamplingOptions,
     Shader,
-    Surface,
     TileMode,
     color_filters,
     image_filters,
-    surfaces,
 };
 
+use crate::image::{compose_filters, filter_grayscale, flatten_grayscale, set_uniform_f32};
 use crate::register_meme;
-
-fn make_gray_surface(width: i32, height: i32) -> Option<Surface> {
-    surfaces::raster(
-        &ImageInfo::new(
-            ISize::new(width, height),
-            ColorType::Gray8,
-            AlphaType::Opaque,
-            None,
-        ),
-        None,
-        None,
-    )
-}
-
-fn grayscale(image: &Image) -> Option<Image> {
-    let mut surface = make_gray_surface(image.width(), image.height())?;
-    let canvas = surface.canvas();
-    canvas.clear(Color::WHITE);
-    canvas.draw_image(image, (0, 0), None);
-    Some(surface.image_snapshot())
-}
-
-fn filter_gray(image: &Image, filter: ImageFilter) -> Option<Image> {
-    let mut surface = make_gray_surface(image.width(), image.height())?;
-    let canvas = surface.canvas();
-    let mut paint = Paint::default();
-    paint.set_image_filter(Some(filter));
-    canvas.draw_image(image, (0, 0), Some(&paint));
-    Some(surface.image_snapshot())
-}
 
 fn make_gradient(dimensions: ISize) -> Option<Shader> {
     linear_gradient(
@@ -117,28 +81,6 @@ fn get_kernel(style: &str) -> Option<(Vec<f32>, ISize, IPoint)> {
     }
 }
 
-fn compose_multi(filters: Vec<ImageFilter>) -> Option<ImageFilter> {
-    let mut it = filters.into_iter();
-    let mut filter = it.next()?;
-    for next_filter in it {
-        filter = image_filters::compose(next_filter, filter)?;
-    }
-    Some(filter)
-}
-
-fn set_uniform_f32(uniforms: &mut [u8], uniform: &Uniform, value: f32) -> Result<(), Error> {
-    let uniform_offset = uniform.offset();
-    let uniform_size = uniform.size_in_bytes();
-    let data = value.to_ne_bytes();
-    let data_size = data.len();
-    if uniform_size != data_size {
-        return Err(error(&format!("Uniform 大小应该为 {}", data_size)));
-    }
-    uniforms[uniform_offset..(uniform_size + uniform_offset)]
-        .copy_from_slice(&data[..uniform_size]);
-    Ok(())
-}
-
 #[inline(always)]
 fn error(reason: &str) -> Error {
     Error::MemeFeedback(format!("内部错误: {}", reason))
@@ -158,9 +100,9 @@ fn make_louvre(
 ) -> Result<Image, Error> {
     let lut = array::from_fn(|i| if i > shade_limit as usize { 0 } else { 255 });
     let shade_light = (SHADE_LIGHT as f32) / 255.0;
-    let shade = filter_gray(
+    let shade = filter_grayscale(
         image,
-        compose_multi(vec![
+        compose_filters(vec![
             image_filters::color_filter(
                 // 这里用 table 不行，就算是灰度图片
                 color_filters::table_argb(None, &lut, &lut, &lut)
@@ -187,7 +129,7 @@ fn make_louvre(
     )
     .ok_or_else(|| error("应用滤镜失败"))?;
     let image = if denoise {
-        &filter_gray(
+        &filter_grayscale(
             image,
             image_filters::matrix_convolution(
                 ISize::new(3, 3),
@@ -208,7 +150,7 @@ fn make_louvre(
     };
     let (kernel, kernel_size, kernel_offset) =
         get_kernel(style).ok_or_else(|| error("风格无效"))?;
-    let convolved = filter_gray(
+    let convolved = filter_grayscale(
         image,
         image_filters::matrix_convolution(
             kernel_size,
@@ -230,7 +172,7 @@ fn make_louvre(
         uniform shader shade;
         uniform shader gradient;
         uniform float darkCut;
-        uniform float scale;
+        uniform float lightCut;
 
         float4 main(vec2 coord) {
             float yImage = image.eval(coord).r;
@@ -238,7 +180,7 @@ fn make_louvre(
             float yShade = shade.eval(coord).r;
             float3 rgbGradient = gradient.eval(coord).rgb;
             float aGradient = yImage - yConvolved + 0.5;
-            aGradient = clamp((aGradient - darkCut) * scale, 0.0, 1.0);
+            aGradient = clamp((aGradient - darkCut) / (lightCut - darkCut), 0.0, 1.0);
             aGradient = max(1.0 - aGradient, yShade);
             return float4(rgbGradient * aGradient + 1.0 * (1.0 - aGradient), 1.0);
         }
@@ -256,9 +198,9 @@ fn make_louvre(
     set_uniform_f32(
         &mut uniforms,
         effect
-            .find_uniform("scale")
+            .find_uniform("lightCut")
             .ok_or_else(|| error("Uniform 不存在"))?,
-        255.0 / (255.0 - (LIGHT_CUT as f32) - (dark_cut as f32)),
+        LIGHT_CUT as f32 / 255.0,
     )?;
     let shader = effect
         .make_shader(
@@ -295,19 +237,19 @@ fn make_louvre(
 #[derive(MemeOptions)]
 struct LouvreOptions {
     /// 线条风格
-    #[option(long, default="normal", choices=["thin", "normal", "semibold", "bold", "black", "emboss"])]
+    #[option(short, long, default="normal", choices=["thin", "normal", "semibold", "bold", "black", "emboss"])]
     style: Option<String>,
 
     /// 边缘强度
-    #[option(long, default = 118, minimum = 80, maximum = 126)]
+    #[option(short, long, default = 118, minimum = 80, maximum = 126)]
     edge: Option<i32>,
 
     /// 暗部强度
-    #[option(long, default = 108, minimum = 20, maximum = 200)]
+    #[option(short, long, default = 108, minimum = 20, maximum = 200)]
     shade: Option<i32>,
 
     /// 降噪
-    #[option(long, default = true)]
+    #[option(short, long, default = true)]
     denoise: Option<bool>,
 }
 
@@ -317,14 +259,15 @@ fn louvre(
     options: LouvreOptions,
 ) -> Result<Vec<u8>, Error> {
     let dimensions = images[0].image.dimensions();
-    let pencil =
-        grayscale(&load_image("idhagnmemes/louvre/0.jpg")?.resize_fit(dimensions, Fit::Cover))
-            .ok_or_else(|| error("无法去色素材"))?;
+    let pencil = flatten_grayscale(
+        &load_image("idhagnmemes/louvre/0.jpg")?.resize_fit(dimensions, Fit::Cover),
+    )
+    .ok_or_else(|| error("无法去色素材"))?;
     let gradient = make_gradient(dimensions).ok_or_else(|| error("创建渐变着色器失败"))?;
 
     make_png_or_gif(images, |images| {
         make_louvre(
-            &grayscale(&images[0]).ok_or_else(|| error("无法去色图片"))?,
+            &flatten_grayscale(&images[0]).ok_or_else(|| error("无法去色图片"))?,
             &pencil,
             gradient.clone(),
             options.style.as_ref().ok_or_else(|| error("参数不存在"))?,

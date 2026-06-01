@@ -12,4 +12,5 @@
 
 ## 特别感谢
 
+- [O'RLY? 生成器](https://orly.nanmu.me/) 的原作者 [nanmu42](https://github.com/nanmu42)。
 - [One Last Image](https://lab.magiconch.com/one-last-image/)（“卢浮宫”梗图）的原作者 [itorr](https://github.com/itorr/)。
