@@ -109,7 +109,7 @@ fn builtin_image(id: Option<i32>) -> Result<Image, Error> {
 
 /// 修改后的 louvre
 fn make_sketch(image: &Image, pencil: &Image) -> Result<Image, Error> {
-    let lut = array::from_fn(|i| if i > 128 { 0 } else { 255 });
+    let lut = array::from_fn(|i| if i > 127 { 0 } else { 255 });
     let smooth = image_filters::blur((0.5, 0.5), None, None, None)
         .ok_or_else(|| Error::MemeFeedback("内部错误：初始化滤镜失败".into()))?;
     let shade = filter_grayscale(
@@ -195,11 +195,10 @@ fn make_sketch(image: &Image, pencil: &Image) -> Result<Image, Error> {
     Ok(surface.image_snapshot())
 }
 
-#[derive(Clone, Copy)]
-enum Style {
+enum Style<'a> {
     Original,
     Grayscale,
-    Sketch,
+    Sketch(&'a Image),
 }
 
 #[derive(MemeOptions)]
@@ -266,12 +265,6 @@ fn orly(
         })?
     } else {
         *BUILTIN_COLORS.choose(&mut rng).unwrap()
-    };
-    let style = match options.style.as_deref() {
-        Some("原图" | "original") => Style::Original,
-        Some("灰度" | "grayscale") => Style::Grayscale,
-        Some("素描" | "sketch") => Style::Sketch,
-        _ => unreachable!(),
     };
 
     let medium = FontStyle::new(Weight::MEDIUM, Width::NORMAL, Slant::Upright);
@@ -366,23 +359,26 @@ fn orly(
         t2i.draw_on_canvas(canvas, (944.0 - width, 1353.0 - t2i.height()));
     }
     let base_image = surface.image_snapshot();
-    let pencil = load_image("idhagnmemes/orly/sketch.png")?.resize_fit((920, 707), Fit::Cover);
 
-    let make = |image: &Image, style: Style| {
-        let mut surface = new_surface(base_image.dimensions());
-        let canvas = surface.canvas();
-        canvas.draw_image(&base_image, (0, 0), None);
+    let calc_size = |image: &Image| {
         let width = image.width() as f32;
         let height = image.height() as f32;
         let ratio = (920.0 / width).min(707.0 / height);
         let width = (width * ratio).round() as i32;
         let height = (height * ratio).round() as i32;
-        let image = image.resize_exact((width, height));
+        (width, height)
+    };
+
+    let make = |image: &Image, style: &Style| {
+        let mut surface = new_surface(base_image.dimensions());
+        let canvas = surface.canvas();
+        canvas.draw_image(&base_image, (0, 0), None);
+        let image = image.resize_exact(calc_size(&image));
         let image = match style {
             Style::Original => image,
             Style::Grayscale => flatten_grayscale(&image)
                 .ok_or_else(|| Error::MemeFeedback("内部错误：无法去色图像".into()))?,
-            Style::Sketch => make_sketch(
+            Style::Sketch(pencil) => make_sketch(
                 &flatten_grayscale(&image)
                     .ok_or_else(|| Error::MemeFeedback("内部错误：无法去色图像".into()))?,
                 &pencil,
@@ -394,10 +390,21 @@ fn orly(
 
     match (images.is_empty(), options.builtin_image) {
         (false, Some(_)) => Err(Error::MemeFeedback("不能同时使用内置图片和外部图片".into())),
-        (false, None) => make_png_or_gif(images, |images| make(&images[0], style)),
+        (false, None) => {
+            let style = match options.style.as_deref() {
+                Some("原图" | "original") => Style::Original,
+                Some("灰度" | "grayscale") => Style::Grayscale,
+                Some("素描" | "sketch") => Style::Sketch(
+                    &load_image("idhagnmemes/orly/sketch.png")?
+                        .resize_fit(calc_size(&images[0].image), Fit::Cover),
+                ),
+                _ => unreachable!(),
+            };
+            make_png_or_gif(images, |images| make(&images[0], &style))
+        }
         (true, builtin) => Ok(encode_png(make(
             &builtin_image(builtin)?,
-            Style::Original,
+            &Style::Original,
         )?)?),
     }
 }
