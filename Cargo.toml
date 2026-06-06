@@ -21,6 +21,9 @@ skia-safe = { version = "0.93", features = ["textlayout"] }
 meme_generator_core = "0.0.5"
 meme_generator_utils = "0.0.9"
 
+[features]
+shader-shenanigans = []
+
 [profile.release]
 strip = true
 opt-level = "z"

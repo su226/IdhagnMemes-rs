@@ -373,7 +373,7 @@ fn orly(
         let mut surface = new_surface(base_image.dimensions());
         let canvas = surface.canvas();
         canvas.draw_image(&base_image, (0, 0), None);
-        let image = image.resize_exact(calc_size(&image));
+        let image = image.resize_exact(calc_size(image));
         let image = match style {
             Style::Original => image,
             Style::Grayscale => flatten_grayscale(&image)
@@ -381,7 +381,7 @@ fn orly(
             Style::Sketch(pencil) => make_sketch(
                 &flatten_grayscale(&image)
                     .ok_or_else(|| Error::MemeFeedback("内部错误：无法去色图像".into()))?,
-                &pencil,
+                pencil,
             )?,
         };
         canvas.draw_image(&image, (960 - image.width(), 802 - image.height()), None);
