@@ -9,14 +9,14 @@ use crate::image::flatten;
 use crate::options::NoOptions;
 use crate::register_meme;
 
-fn ori(images: Vec<InputImage>, _: Vec<String>, _: NoOptions) -> Result<Vec<u8>, Error> {
-    let frame = load_image("idhagnmemes/ori/0.png")?;
+fn patrick(images: Vec<InputImage>, _: Vec<String>, _: NoOptions) -> Result<Vec<u8>, Error> {
+    let frame = load_image("idhagnmemes/patrick/0.png")?;
 
     let func = |images: Vec<Image>| {
         let mut surface = frame.to_surface();
         let canvas = surface.canvas();
-        let img = flatten(&images[0].resize_fit((100, 100), Fit::Cover)).circle();
-        canvas.draw_image(&img, (305, 222), None);
+        let img = flatten(&&images[0].resize_fit((280, 280), Fit::Cover)).round_corner(60.0);
+        canvas.draw_image(&img, (403, 319), None);
         Ok(surface.image_snapshot())
     };
 
@@ -24,11 +24,11 @@ fn ori(images: Vec<InputImage>, _: Vec<String>, _: NoOptions) -> Result<Vec<u8>,
 }
 
 register_meme!(
-    "ori",
-    ori,
+    "patrick",
+    patrick,
     min_images = 1,
     max_images = 1,
-    keywords = &["ori", "拥抱光明"],
-    date_created = local_date(2022, 2, 14),
-    date_modified = local_date(2025, 12, 5),
+    keywords = &["派大星举"],
+    date_created = local_date(2026, 6, 7),
+    date_modified = local_date(2026, 6, 7),
 );

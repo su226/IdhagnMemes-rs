@@ -60,8 +60,8 @@ fn make_wave(image: &Image) -> Image {
                 b = lerp(color2.b, color.b, ratio);
                 a = lerp(color2.a, color.a, ratio);
             }
-            float ratio = clamp((waveY + 0.5) - (halfChunkSizeY - waveSize), 0, 1) * clamp((halfChunkSizeY + waveSize) - (waveY - 0.5), 0, 1);
-            return float4(r, g, b, a) * ratio;
+            float alpha = clamp((waveY + 0.5) - (halfChunkSizeY - waveSize), 0, 1) * clamp((halfChunkSizeY + waveSize) - (waveY - 0.5), 0, 1);
+            return float4(r, g, b, a) * alpha;
         }
     "#;
     let effect = RuntimeEffect::make_for_shader(sksl, None);
@@ -83,12 +83,7 @@ fn make_wave(image: &Image) -> Image {
         chunk_size,
     )
     .unwrap();
-    set_uniform_f32(
-        &mut uniforms,
-        effect.find_uniform("ratioExp").unwrap(),
-        2.0,
-    )
-    .unwrap();
+    set_uniform_f32(&mut uniforms, effect.find_uniform("ratioExp").unwrap(), 2.0).unwrap();
     set_uniform_f32(
         &mut uniforms,
         effect.find_uniform("waveSizeMul").unwrap(),

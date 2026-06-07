@@ -34,24 +34,14 @@ fn make_dots(image: &Image) -> Image {
         Err(err) => panic!("{}", err),
     };
     let mut uniforms = vec![0; effect.uniform_size()];
-    set_uniform_f32(
-        &mut uniforms,
-        effect.find_uniform("dotSize").unwrap(),
-        10.0,
-    )
-    .unwrap();
+    set_uniform_f32(&mut uniforms, effect.find_uniform("dotSize").unwrap(), 10.0).unwrap();
     set_uniform_f32(
         &mut uniforms,
         effect.find_uniform("dotOffset").unwrap(),
         5.0,
     )
     .unwrap();
-    set_uniform_f32(
-        &mut uniforms,
-        effect.find_uniform("dotScale").unwrap(),
-        0.8,
-    )
-    .unwrap();
+    set_uniform_f32(&mut uniforms, effect.find_uniform("dotScale").unwrap(), 0.8).unwrap();
     let children = image
         .to_shader(
             (TileMode::Clamp, TileMode::Clamp),
