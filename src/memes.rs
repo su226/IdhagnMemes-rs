@@ -1,5 +1,6 @@
 mod addict;
 mod cxk;
+mod deepseek;
 mod flash;
 mod good_answer;
 mod indihome;

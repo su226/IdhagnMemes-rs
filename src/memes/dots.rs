@@ -24,7 +24,7 @@ fn make_dots(image: &Image) -> Image {
             float posX = mod((coord.x - offset), dotSize) - halfDotSize;
             float posY = mod(coord.y, dotSize) - halfDotSize;
             float dotRadius = halfDotSize * dotScale;
-            float alpha = clamp(dotRadius - sqrt(posX * posX + posY * posY), 0, 1);
+            float alpha = clamp(dotRadius + 0.5 - sqrt(posX * posX + posY * posY), 0, 1);
             return image.eval(float2(centerX, centerY)) * alpha;
         }
     "#;
